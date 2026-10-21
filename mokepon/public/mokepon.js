@@ -23,6 +23,7 @@ let ataqueJugador = []
 let ataqueEnemigo = []
 let mokeponesEnemigos = []
 let mascotaJugador
+let mascotaJugadorObjeto
 let inputHipodoge
 let inputCapipepo
 let inputRatigueya
@@ -35,8 +36,12 @@ let victoriasEnemigo = 0
 let botones = []
 let indexAtaqueJugador
 let indexAtaqueEnemigo
+
 let intervalo
 let intervaloEnemigos
+let intervaloAtaques
+
+let combateRealizado = false
 
 sectionBotonReiniciar.style.display = "none"
 
@@ -161,11 +166,16 @@ function iniciarJuego() {
         seleccionarMascotaJugador
     )
 
+    botonReiniciar.addEventListener(
+        "click",
+        reiniciarJuego
+    )
+
     unirseAlJuego()
 }
 
 function unirseAlJuego() {
-    fetch("http://192.168.40.37:8080/unirse")
+    fetch("http://192.168.0.184:8080/unirse")
         .then(res => {
             if (!res.ok) {
                 throw new Error("No se pudo conectar al servidor")
@@ -206,14 +216,17 @@ function seleccionarMascotaJugador() {
     }
 
     sectionSeleccionarMascota.style.display = "none"
+
     seleccionarMokepon(mascotaJugador)
     extraerAtaques(mascotaJugador)
+
     sectionVerMapa.style.display = "flex"
+
     iniciarMapa()
 }
 
 function seleccionarMokepon(mascotaJugador) {
-    fetch(`http://192.168.40.37:8080/mokepon/${jugadorId}`, {
+    fetch(`http://192.168.0.184:8080/mokepon/${jugadorId}`, {
         method: "post",
         headers: {
             "Content-Type": "application/json"
@@ -253,6 +266,7 @@ function mostrarAtaques(ataques) {
     botonTierra = document.getElementById("boton-tierra")
     botonFuego = document.getElementById("boton-fuego")
     botonAgua = document.getElementById("boton-agua")
+
     botones = document.querySelectorAll(".BAtaque")
 }
 
@@ -280,7 +294,7 @@ function secuenciaAtaque() {
 }
 
 function enviarAtaques() {
-    fetch(`http://192.168.40.37:8080/mokepon/${jugadorId}/ataques`, {
+    fetch(`http://192.168.0.184:8080/mokepon/${jugadorId}/ataques`, {
         method: "post",
         headers: {
             "Content-Type": "application/json"
@@ -289,28 +303,56 @@ function enviarAtaques() {
             ataques: ataqueJugador
         })
     })
+        .then(res => {
+            if (!res.ok) {
+                throw new Error("Error enviando ataques")
+            }
 
-    intervalo = setInterval(obtenerAtaques, 50)
+            combateRealizado = false
+
+            clearInterval(intervaloAtaques)
+
+            intervaloAtaques = setInterval(
+                obtenerAtaques,
+                100
+            )
+        })
+        .catch(error => {
+            console.error(
+                "Error enviando ataques:",
+                error
+            )
+        })
 }
 
 function obtenerAtaques() {
-    if (!enemigoId) {
+    if (!enemigoId || combateRealizado) {
         return
     }
 
     fetch(
-        `http://192.168.40.37:8080/mokepon/${enemigoId}/ataques`
+        `http://192.168.0.184:8080/mokepon/${enemigoId}/ataques`
     )
         .then(res => {
             if (!res.ok) {
-                throw new Error("Error obteniendo ataques")
+                throw new Error(
+                    "Error obteniendo ataques"
+                )
             }
 
             return res.json()
         })
         .then(({ ataques }) => {
-            if (ataques.length === 5) {
+            if (
+                ataques.length === 5 &&
+                !combateRealizado
+            ) {
+                combateRealizado = true
+
+                clearInterval(intervaloAtaques)
+
                 ataqueEnemigo = ataques
+
                 combate()
             }
         })
@@ -372,7 +414,15 @@ function indexAmbosOponente(jugador, enemigo) {
 }
 
 function combate() {
+    clearInterval(intervaloAtaques)
     clearInterval(intervalo)
+
+    if (
+        ataqueJugador.length !== 5 ||
+        ataqueEnemigo.length !== 5
+    ) {
+        return
+    }
 
     for (
         let index = 0;
@@ -391,7 +441,9 @@ function combate() {
         ) {
             indexAmbosOponente(index, index)
             crearMensaje("GANASTE")
+
             victoriasJugador++
+
             spanVidasJugador.innerHTML =
                 victoriasJugador
         } else if (
@@ -400,7 +452,9 @@ function combate() {
         ) {
             indexAmbosOponente(index, index)
             crearMensaje("GANASTE")
+
             victoriasJugador++
+
             spanVidasJugador.innerHTML =
                 victoriasJugador
         } else if (
@@ -409,13 +463,17 @@ function combate() {
         ) {
             indexAmbosOponente(index, index)
             crearMensaje("GANASTE")
+
             victoriasJugador++
+
             spanVidasJugador.innerHTML =
                 victoriasJugador
         } else {
             indexAmbosOponente(index, index)
             crearMensaje("PERDISTE")
+
             victoriasEnemigo++
+
             spanVidasEnemigo.innerHTML =
                 victoriasEnemigo
         }
@@ -460,10 +518,15 @@ function crearMensaje(resultado) {
 
 function crearMensajeFinal(resultadoFinal) {
     sectionMensajes.innerHTML = resultadoFinal
+
     sectionBotonReiniciar.style.display = "flex"
 }
 
 function reiniciarJuego() {
+    clearInterval(intervalo)
+    clearInterval(intervaloEnemigos)
+    clearInterval(intervaloAtaques)
+
     location.reload()
 }
 
@@ -534,7 +597,7 @@ function pintarCanvas() {
 
 function enviarPosicion(x, y) {
     fetch(
-        `http://192.168.40.37:8080/mokepon/${jugadorId}/posicion`,
+        `http://192.168.0.184:8080/mokepon/${jugadorId}/posicion`,
         {
             method: "post",
             headers: {
@@ -559,7 +622,7 @@ function obtenerEnemigos() {
     }
 
     fetch(
-        `http://192.168.40.37:8080/mokepon/${jugadorId}/enemigos`
+        `http://192.168.0.184:8080/mokepon/${jugadorId}/enemigos`
     )
         .then(res => {
             if (!res.ok) {
@@ -668,12 +731,15 @@ function sePresionoUnaTecla(event) {
         case "w":
             moverArriba()
             break
+
         case "s":
             moverAbajo()
             break
+
         case "a":
             moverIzquierda()
             break
+
         case "d":
             moverDerecha()
             break
